@@ -9,22 +9,20 @@ services:
       - SPARK_MASTER_HOST=spark-master
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-logs
     command: >
-      bash -c "pip install numpy pillow scikit-learn --quiet &&
+      bash -c "pip install numpy pillow tabulate scikit-learn --quiet &&
                /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master"
     ports:
       - "8080:8080"
       - "7077:7077"
       - "4040:4040"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import numpy; import PIL"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
     volumes:
       - ./data:/opt/spark-data
       - ./apps:/opt/spark-apps
+      - ./spark/spark-logs:/opt/spark/spark-logs
+      - ./spark/work:/opt/spark/work
+      - ./spark/conf/spark_defaults.conf:/opt/spark/conf/spark_defaults.conf
       - ./apps/postgresql-42.6.0.jar:/opt/spark/jars/postgresql-42.6.0.jar
       - ./apps/log4j2.properties:/opt/spark/conf/log4j2.properties
     networks:
@@ -40,14 +38,16 @@ services:
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=2g
     command: >
-      bash -c "pip install numpy pillow scikit-learn --quiet &&
+      bash -c "pip install numpy pillow tabulate scikit-learn --quiet &&
                /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077"
     depends_on:
-      spark-master:
-        condition: service_healthy
+      - spark-master
     volumes:
       - ./data:/opt/spark-data
       - ./apps:/opt/spark-apps
+      - ./spark/spark-logs:/opt/spark/spark-logs
+      - ./spark/work:/opt/spark/work
+      - ./spark/conf/spark_defaults.conf:/opt/spark/conf/spark_defaults.conf
       - ./apps/log4j2.properties:/opt/spark/conf/log4j2.properties
     networks:
       - spark-network
@@ -62,15 +62,35 @@ services:
       - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=2g
     command: >
-      bash -c "pip install numpy pillow scikit-learn --quiet &&
+      bash -c "pip install numpy pillow tabulate scikit-learn --quiet &&
                /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077"
     depends_on:
-      spark-master:
-        condition: service_healthy
+      - spark-master
     volumes:
       - ./data:/opt/spark-data
       - ./apps:/opt/spark-apps
+      - ./spark/spark-logs:/opt/spark/spark-logs
+      - ./spark/work:/opt/spark/work
+      - ./spark/conf/spark_defaults.conf:/opt/spark/conf/spark_defaults.conf
       - ./apps/log4j2.properties:/opt/spark/conf/log4j2.properties
+    networks:
+      - spark-network
+
+  spark-history:
+    image: apache/spark:3.5.0
+    container_name: spark-history
+    user: root
+    environment:
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=/opt/spark/spark-logs -Dspark.history.ui.port=18080
+    command: >
+      bash -c "mkdir -p /opt/spark/spark-logs && chmod 777 /opt/spark/spark-logs &&
+               /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer"
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./spark/spark-logs:/opt/spark/spark-logs
+    depends_on:
+      - spark-master
     networks:
       - spark-network
 
@@ -88,7 +108,6 @@ services:
     networks:
       - spark-network
 
-  # Optional: Add Kafka for streaming
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
