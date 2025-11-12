@@ -165,8 +165,8 @@ def process_images_batch(spark, image_paths, args):
     cores_per_executor = int(spark.conf.get("spark.executor.cores", "2"))
     total_cores = num_executors * cores_per_executor
 
-    # target_partitions = max(total_cores * 2, len(image_paths) // 10)
-    target_partitions = 4
+    target_partitions = max(total_cores * 2, len(image_paths) // 10)
+    # target_partitions = 4
 
     logger.info(
         f"Repartitioning to {target_partitions} partitions for parallel processing"
